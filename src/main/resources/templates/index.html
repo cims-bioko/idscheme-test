@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+    <style>
+        label {
+            display: block;
+            font-size: small;
+        }
+        input {
+            margin-bottom: 5px;
+        }
+        message {
+            display: block;
+            color: red;
+        }
+    </style>
+    <body>
+        {{#message}}
+        <message>{{message}} <a href="/buildIndex">Rebuild Index</a></message>
+        {{/message}}
+        <form action="/">
+            <label for="dip">ID #</label>
+            <input id="dip" name="dip" {{#dip}} value="{{dip}}"{{/dip}}>
+            <br/>
+
+            <label for="name">Name</label>
+            <input id="name" name="name" {{#name}} value="{{name}}"{{/name}}>
+            <br/>
+
+            <label for="age">Age</label>
+            <input id="age" name="age" {{#age}} value="{{age}}"{{/age}}>
+            <br/>
+
+            <label for="phone">Phone</label>
+            <input id="phone" name="phone" {{#phone}} value="{{phone}}"{{/phone}}>
+            <br/>
+
+            <input type="submit" />
+        </form>
+        <hr/>
+        <table>
+            <tr><th>extId</th><th>First Name</th><th>Middle Name</th><th>Last Name</th><th>Age</th><th>Score</th></tr>
+        {{#results}}
+            <tr><td>{{extId}}</td><td>{{firstName}}</td><td>{{middleName}}</td><td>{{lastName}}</td><td>{{age}}</td><td>{{score}}</td></tr>
+        {{/results}}
+        </table>
+    </body>
+</html>

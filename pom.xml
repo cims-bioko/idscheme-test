@@ -1,15 +1,50 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
                              http://maven.apache.org/maven-v4_0_0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
 
-	<groupId>com.github.cims-bioko</groupId>
-	<artifactId>idscheme-test</artifactId>
-	<version>1.0-SNAPSHOT</version>
-	
-	<name>ID Scheme Test</name>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>1.2.5.RELEASE</version>
+    </parent>
+
+    <groupId>com.github.cims-bioko</groupId>
+    <artifactId>idscheme-test</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <name>ID Scheme Test</name>
+    <description>
+        A simple prototype for testing a search engine-based approach to identifying individuals
+        for the Bioko CIMS project. This was built only to quickly iterate on the usage and get
+        feedback from the field team.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mustache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-core</artifactId>
+            <version>3.6.2</version>
+        </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>5.1.22</version>
+        </dependency>
+    </dependencies>
 
     <build>
         <pluginManagement>
@@ -22,12 +57,12 @@
                         <target>1.7</target>
                     </configuration>
                 </plugin>
-	    </plugins>
+            </plugins>
         </pluginManagement>
     </build>
-    
+
     <properties>
-	<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
 </project>
