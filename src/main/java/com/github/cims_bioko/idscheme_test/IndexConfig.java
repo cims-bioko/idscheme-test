@@ -19,8 +19,14 @@ public class IndexConfig {
     @Autowired
     private Environment environment;
 
+    @Value("classpath:pre.sql")
+    private Resource preQuery;
+
     @Value("classpath:query.sql")
-    private Resource storedQuery;
+    private Resource query;
+
+    @Value("classpath:post.sql")
+    private Resource postQuery;
 
     @Bean
     public Mustache.Compiler mustacheCompiler(Mustache.TemplateLoader mustacheTemplateLoader) {
@@ -34,9 +40,18 @@ public class IndexConfig {
         return collector;
     }
 
-    @Bean(name = "query")
-    public String query() throws IOException {
-        return String.valueOf(Files.readAllBytes(storedQuery.getFile().toPath()));
+    @Bean
+    public String preQuery() throws IOException {
+        return new String(Files.readAllBytes(preQuery.getFile().toPath()));
     }
 
+    @Bean
+    public String query() throws IOException {
+        return new String(Files.readAllBytes(query.getFile().toPath()));
+    }
+
+    @Bean
+    public String postQuery() throws IOException {
+        return new String(Files.readAllBytes(postQuery.getFile().toPath()));
+    }
 }

@@ -23,12 +23,16 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.NoSuchDirectoryException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCreator;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,13 +50,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.annotation.Resource;
+
 import static org.apache.lucene.index.IndexWriterConfig.OpenMode.CREATE;
 import static org.apache.lucene.util.Version.LUCENE_36;
 
 @Component
 public class IndexImpl implements Index {
 
+    private static Logger log = LoggerFactory.getLogger(IndexImpl.class);
+
+    private String preQuery;
     private String query;
+    private String postQuery;
     private File indexFile;
     private JdbcTemplate jdbcTemplate;
 
@@ -61,9 +71,19 @@ public class IndexImpl implements Index {
         this.indexFile = indexFile;
     }
 
-    @Autowired
+    @Resource(name="preQuery")
+    public void setPreQuery(String ddl) {
+        this.preQuery = ddl;
+    }
+
+    @Resource(name="query")
     public void setQuery(String query) {
         this.query = query;
+    }
+
+    @Resource(name="postQuery")
+    public void setPostQuery(String ddl) {
+        this.postQuery = ddl;
     }
 
     @Autowired
@@ -87,7 +107,17 @@ public class IndexImpl implements Index {
      * Rebuilds the search index. Needs to be run before search is possible.
      */
     @Override
+    @Transactional
     public void rebuild() {
+
+        log.info("rebuilding search index");
+
+        long start = System.currentTimeMillis();
+
+        if (preQuery != null) {
+            log.info("running pre-query setup");
+            jdbcTemplate.execute(preQuery);
+        }
 
         PreparedStatementCreator streamStmtCreator = new PreparedStatementCreator() {
             @Override
@@ -99,11 +129,11 @@ public class IndexImpl implements Index {
             }
         };
 
-        System.out.println("rebuilding index at " + indexFile.getAbsolutePath());
+        log.info("rebuilding index at {}", indexFile.getAbsolutePath());
 
         // Create the index directory if it doesn't already exist
         if (indexFile.mkdirs()) {
-            System.out.println("created index directory");
+            log.info("created index directory");
         }
 
         try {
@@ -118,7 +148,6 @@ public class IndexImpl implements Index {
             final IndexWriter indexWriter = new IndexWriter(indexDir, config);
 
             try {
-                long start = System.currentTimeMillis();
 
                 jdbcTemplate.query(streamStmtCreator, new RowCallbackHandler() {
 
@@ -127,7 +156,9 @@ public class IndexImpl implements Index {
                     @Override
                     public void processRow(ResultSet rs) throws SQLException {
 
-                        System.out.println(Integer.toString(++processed) + ": " + rs.getString("extId"));
+                        if (log.isDebugEnabled()) {
+                            log.debug(Integer.toString(++processed) + ": " + rs.getString("extId"));
+                        }
 
                         // Used to get field count and labels
                         ResultSetMetaData md = rs.getMetaData();
@@ -199,21 +230,28 @@ public class IndexImpl implements Index {
                         try {
                             indexWriter.addDocument(d);
                         } catch (IOException e) {
-                            e.printStackTrace();
+                            log.warn("failed to add document to index", e);
                         }
                     }
                 });
 
                 indexWriter.commit();
 
-                System.out.printf("indexing complete (%.3f sec)", (System.currentTimeMillis() - start) / 1000.0);
-
             } finally {
                 indexWriter.close();
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("indexing process aborted early", e);
+        }
+
+        if (postQuery != null) {
+            log.info("running post query tear-down");
+            jdbcTemplate.execute(postQuery);
+        }
+
+        if (log.isInfoEnabled()) {
+            log.info(String.format("index rebuild complete (total %.3f sec)", (System.currentTimeMillis() - start) / 1000.0));
         }
     }
 
@@ -292,7 +330,7 @@ public class IndexImpl implements Index {
         } catch (NoSuchDirectoryException nsde) {
             throw new NoIndexException();
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("failed to execute search", e);
         }
 
         return results;
