@@ -52,6 +52,7 @@ import static org.apache.lucene.util.Version.LUCENE_36;
 @Component
 public class IndexImpl implements Index {
 
+    private String query;
     private File indexFile;
     private JdbcTemplate jdbcTemplate;
 
@@ -60,7 +61,12 @@ public class IndexImpl implements Index {
         this.indexFile = indexFile;
     }
 
-    @Autowired(required = true)
+    @Autowired
+    public void setQuery(String query) {
+        this.query = query;
+    }
+
+    @Autowired
     public void setJdbcTemplate(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
@@ -86,22 +92,8 @@ public class IndexImpl implements Index {
         PreparedStatementCreator streamStmtCreator = new PreparedStatementCreator() {
             @Override
             public PreparedStatement createPreparedStatement(Connection con) throws SQLException {
-                String sql = "select \n" +
-                        "\textId,\n" +
-                        "\tcase dip when 0 then null else dip end as dip,\n" +
-                        "\tcase firstName when 'null' then null else firstName end as firstName,\n" +
-                        "\tcase middleName when 'null' then null else middleName end as middleName,\n" +
-                        "\tcase lastName when 'null' then null else lastName end as lastName,\n" +
-                        "\tdate_format(now(), '%Y') - date_format(dob, '%Y') - (date_format(now(), '00-%m-%d') < date_format(dob, '00-%m-%d')) as age,\n" +
-                        "\tcase phoneNumber when 'null' then null else phoneNumber end as phoneNumber,\n" +
-                        "\tcase otherPhoneNumber when 'null' then null else otherPhoneNumber end as otherPhoneNumber,\n" +
-                        "\tcase pointOfContactPhoneNumber when 'null' then null else pointOfContactPhoneNumber end as pointOfContactPhoneNumber\n" +
-                        "from\n" +
-                        "\tindividual i" +
-                        "\twhere i.deleted != 1";
-
                 // Configures the MySQL java connector to stream data; prevents filling up memory for large results
-                PreparedStatement stmt = con.prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+                PreparedStatement stmt = con.prepareStatement(query, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
                 stmt.setFetchSize(Integer.MIN_VALUE);
                 return stmt;
             }
