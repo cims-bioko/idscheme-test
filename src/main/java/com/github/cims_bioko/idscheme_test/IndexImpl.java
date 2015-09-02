@@ -245,7 +245,7 @@ public class IndexImpl implements Index {
         }
 
         if (postQuery != null) {
-            log.info("running post query tear-down");
+            log.info("running post-query tear-down");
             jdbcTemplate.execute(postQuery);
         }
 
