@@ -231,8 +231,12 @@ public class IndexImpl implements Index {
             IndexSearcher searcher = new IndexSearcher(reader);
             QueryParser parser = new IndexQueryParser(analyzer);
 
+            log.info("running query: '{}'", q);
+
             Query query = parser.parse(q);
             TopDocs hits = searcher.search(query, maxResults);
+
+            log.info("found {} hits, showing top {}", hits.totalHits, maxResults);
 
             // Convert documents into results map for page
             for (ScoreDoc sd : hits.scoreDocs) {
