@@ -11,6 +11,8 @@ public interface Index {
 
     void rebuild();
 
-    List<Map<String, Object>> search(Map<String, Object> params, int maxResults) throws NoIndexException, BadQueryException, IOException;
+    String buildQuery(Map<String, Object> params);
+
+    List<Map<String, Object>> search(String query, int maxResults) throws NoIndexException, BadQueryException, IOException;
 
 }

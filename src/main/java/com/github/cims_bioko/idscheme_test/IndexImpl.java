@@ -164,44 +164,7 @@ public class IndexImpl implements Index {
     }
 
     @Override
-    public List<Map<String, Object>> search(Map<String, Object> params, int maxResults) throws NoIndexException, BadQueryException, IOException {
-
-        List<Map<String, Object>> results = new ArrayList<>();
-
-        try {
-            Analyzer analyzer = new IndexAnalyzer();
-
-            // Open the index for the search
-            Directory indexDir = FSDirectory.open(indexFile);
-            IndexReader reader = IndexReader.open(indexDir);
-            IndexSearcher searcher = new IndexSearcher(reader);
-            QueryParser parser = new IndexQueryParser(analyzer);
-
-            String q = buildQuery(params);
-            Query query = parser.parse(q);
-            TopDocs hits = searcher.search(query, maxResults);
-
-            // Convert documents into results map for page
-            for (ScoreDoc sd : hits.scoreDocs) {
-                Document d = searcher.doc(sd.doc);
-                Map<String, Object> result = new HashMap<>();
-                for (Fieldable f : d.getFields()) {
-                    result.put(f.name(), f.stringValue());
-                }
-                result.put("score", sd.score);
-                results.add(result);
-            }
-
-        } catch (CorruptIndexException | NoSuchDirectoryException nsde) {
-            throw new NoIndexException();
-        } catch (ParseException e) {
-            throw new BadQueryException();
-        }
-
-        return results;
-    }
-
-    private String buildQuery(Map<String, Object> params) {
+    public String buildQuery(Map<String, Object> params) {
 
         StringBuilder qstr = new StringBuilder();
 
@@ -250,7 +213,45 @@ public class IndexImpl implements Index {
                 qstr.append(" ");
             qstr.append(String.format("headName:%1$s~", params.get("headName")));
         }
+
         return qstr.toString();
+    }
+
+    @Override
+    public List<Map<String, Object>> search(String q, int maxResults) throws NoIndexException, BadQueryException, IOException {
+
+        List<Map<String, Object>> results = new ArrayList<>();
+
+        try {
+            Analyzer analyzer = new IndexAnalyzer();
+
+            // Open the index for the search
+            Directory indexDir = FSDirectory.open(indexFile);
+            IndexReader reader = IndexReader.open(indexDir);
+            IndexSearcher searcher = new IndexSearcher(reader);
+            QueryParser parser = new IndexQueryParser(analyzer);
+
+            Query query = parser.parse(q);
+            TopDocs hits = searcher.search(query, maxResults);
+
+            // Convert documents into results map for page
+            for (ScoreDoc sd : hits.scoreDocs) {
+                Document d = searcher.doc(sd.doc);
+                Map<String, Object> result = new HashMap<>();
+                for (Fieldable f : d.getFields()) {
+                    result.put(f.name(), f.stringValue());
+                }
+                result.put("score", sd.score);
+                results.add(result);
+            }
+
+        } catch (CorruptIndexException | NoSuchDirectoryException nsde) {
+            throw new NoIndexException();
+        } catch (ParseException e) {
+            throw new BadQueryException();
+        }
+
+        return results;
     }
 
     static class MySqlStreamingStatementCreator implements PreparedStatementCreator {

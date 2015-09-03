@@ -36,6 +36,17 @@
         th, td {
             padding: 2px 6px;
         }
+        input[type=checkbox] {
+            float: left;
+            margin-right: 0.4em;
+        }
+        input[type=submit] {
+            display: block;
+            clear: both;
+        }
+        .manual-search label {
+            clear: both;
+        }
     </style>
     <script>
         $(document).ready(function() {
@@ -61,6 +72,19 @@
                         $(this).hide();
                     });
             });
+            function updateManualState() {
+                if ($('#manualOverride').is(':checked')) {
+                    $('.search-fields').hide();
+                    $('.manual-search').show();
+                    $('#query').prop('readonly', false);
+                } else {
+                    $('.search-fields').show();
+                    $('.manual-search').hide();
+                    $('#query').prop('readonly', true);
+                }
+            }
+            $('#manualOverride').click(updateManualState);
+            updateManualState(); // Update once on initial page load
         });
     </script>
 </head>
@@ -72,39 +96,51 @@
 <a href="/buildIndex">Rebuild Index</a>
 {{/showBuildLink}}
 <form action="/">
-    <label for="dip">ID #</label>
-    <input id="dip" name="dip" {{#dip}} value="{{dip}}" {{/dip}}>
-    <br/>
 
-    <label for="name">Name</label>
-    <input id="name" name="name" {{#name}} value="{{name}}" {{/name}}>
-    <br/>
-
-    <label for="age">Age</label>
-    <input id="age" name="age" {{#age}} value="{{age}}" {{/age}}>
-    <br/>
-
-    <label for="phone">Phone</label>
-    <input id="phone" name="phone" {{#phone}} value="{{phone}}" {{/phone}}>
-    <br/>
-
-    <a id="advanced" href="#">More Options...</a>
-
-    <div class="advanced-search">
-        <label for="district">District</label>
-        <input id="district" name="district" {{#district}} value="{{district}}" {{/district}}>
+    <div class="search-fields">
+        <label for="dip">ID #</label>
+        <input id="dip" name="dip" {{#dip}} value="{{dip}}" {{/dip}}>
         <br/>
 
-        <label for="community">Community</label>
-        <input id="community" name="community" {{#community}} value="{{community}}" {{/community}}>
+        <label for="name">Name</label>
+        <input id="name" name="name" {{#name}} value="{{name}}" {{/name}}>
         <br/>
 
-        <label for="headName">Head of Household</label>
-        <input id="headName" name="headName" {{#headName}} value="{{headName}}" {{/headName}}>
+        <label for="age">Age</label>
+        <input id="age" name="age" {{#age}} value="{{age}}" {{/age}}>
         <br/>
+
+        <label for="phone">Phone</label>
+        <input id="phone" name="phone" {{#phone}} value="{{phone}}" {{/phone}}>
+        <br/>
+
+        <a id="advanced" href="#">More Options...</a>
+
+        <div class="advanced-search">
+            <label for="district">District</label>
+            <input id="district" name="district" {{#district}} value="{{district}}" {{/district}}>
+            <br/>
+
+            <label for="community">Community</label>
+            <input id="community" name="community" {{#community}} value="{{community}}" {{/community}}>
+            <br/>
+
+            <label for="headName">Head of Household</label>
+            <input id="headName" name="headName" {{#headName}} value="{{headName}}" {{/headName}}>
+            <br/>
+        </div>
+    </div>
+
+    <input type="checkbox" id="manualOverride" name="manualOverride" {{#manualOverride}} checked {{/manualOverride}}/>
+    <label for="manualOverride">Manual Override</label>
+
+    <div class="manual-search">
+        <label for="query">Query</label>
+        <input id="query" name="query" {{#query}} value="{{query}}" {{/query}}>
     </div>
 
     <input type="submit"/>
+
 </form>
 <hr/>
 <table>
