@@ -94,19 +94,6 @@ public class IndexImpl implements Index {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    static class IndexAnalyzer extends ReusableAnalyzerBase {
-        @Override
-        protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
-            Tokenizer src = new WhitespaceTokenizer(LUCENE_36, reader);
-            TokenStream tok = new LowerCaseFilter(LUCENE_36, src);
-            return new TokenStreamComponents(src, tok);
-        }
-    }
-
-    private static final Set<String> NAME_LABELS = new HashSet<>(Arrays.asList("firstName", "middleName", "lastName"));
-    private static final Set<String> PHONE_LABELS = new HashSet<>(Arrays.asList("phoneNumber", "otherPhoneNumber", "pointOfContactPhoneNumber"));
-    private static final Set<String> HEAD_NAME_LABELS = new HashSet<>(Arrays.asList("hhFirstName", "hhMiddleName", "hhLastName"));
-
     /**
      * Rebuilds the search index. Needs to be run before search is possible.
      */
@@ -123,16 +110,6 @@ public class IndexImpl implements Index {
             jdbcTemplate.execute(preQuery);
         }
 
-        PreparedStatementCreator streamStmtCreator = new PreparedStatementCreator() {
-            @Override
-            public PreparedStatement createPreparedStatement(Connection con) throws SQLException {
-                // Configures the MySQL java connector to stream data; prevents filling up memory for large results
-                PreparedStatement stmt = con.prepareStatement(query, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-                stmt.setFetchSize(Integer.MIN_VALUE);
-                return stmt;
-            }
-        };
-
         log.info("rebuilding index at {}", indexFile.getAbsolutePath());
 
         // Create the index directory if it doesn't already exist
@@ -141,126 +118,17 @@ public class IndexImpl implements Index {
         }
 
         try {
-            final Analyzer analyzer = new IndexAnalyzer();
+            IndexWriter indexWriter = createIndexWriter();
+            IndexRowHandler rowHandler = new IndexRowHandler(indexWriter);
 
-            IndexWriterConfig config = new IndexWriterConfig(LUCENE_36, analyzer);
-            config.setRAMBufferSizeMB(5.0f);
-            config.setOpenMode(CREATE);
-
-            Directory indexDir = FSDirectory.open(indexFile);
-
-            final IndexWriter indexWriter = new IndexWriter(indexDir, config);
+            PreparedStatementCreator streamStmtCreator = new MySqlStreamingStatementCreator(query);
 
             try {
-
-                jdbcTemplate.query(streamStmtCreator, new RowCallbackHandler() {
-
-                    private int processed = 0;
-
-                    @Override
-                    public void processRow(ResultSet rs) throws SQLException {
-
-                        if (log.isDebugEnabled()) {
-                            log.debug(Integer.toString(++processed) + ": " + rs.getString("extId"));
-                        }
-
-                        // Used to get field count and labels
-                        ResultSetMetaData md = rs.getMetaData();
-
-                        /*
-                           Used to merge multiple fields into single term without duplication.
-                           This prevents skewing the scores when value is repeated multiple times.
-                         */
-                        Set<String> names = new HashSet<>();
-                        Set<String> phones = new HashSet<>();
-                        Set<String> headNames = new HashSet<>();
-
-                        // Populate document using result set
-                        Document d = new Document();
-                        for (int col = 1; col <= md.getColumnCount(); col++) {
-                            Fieldable f;
-                            String label = md.getColumnLabel(col);
-                            if (rs.getObject(label) != null) {
-                                if ("dip".equals(label)) {
-                                    f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.YES);
-                                } else if ("extId".equals(label)) {
-                                    // Field is only used to show result, not used in search
-                                    f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
-                                } else if ("age".equals(label)) {
-                                    NumericField nf = new NumericField(label, 1, Field.Store.YES, true);
-                                    nf.setIntValue(rs.getInt(label));
-                                    f = nf;
-                                } else if (PHONE_LABELS.contains(label)) {
-                                    // Field is only used to show result, not used in search
-                                    f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
-                                    for (String phone : rs.getString(label).split("\\s+")) {
-                                        phones.add(phone);
-                                    }
-                                } else if (NAME_LABELS.contains(label)) {
-                                    // Field is only used to show result, not used in search
-                                    f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
-                                    for (String name : rs.getString(label).split("\\s+")) {
-                                        names.add(name);
-                                    }
-                                } else if (HEAD_NAME_LABELS.contains(label)) {
-                                    // Field is only used to show result, not used in search
-                                    f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
-                                    for (String name : rs.getString(label).split("\\s+")) {
-                                        headNames.add(name);
-                                    }
-                                } else {
-                                    f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.YES);
-                                }
-                                d.add(f);
-                            }
-                        }
-
-                        // Construct single de-duplicated name term from name terms
-                        if (!names.isEmpty()) {
-                            StringBuilder nameBuf = new StringBuilder();
-                            for (String name : names) {
-                                if (nameBuf.length() > 0)
-                                    nameBuf.append(" ");
-                                nameBuf.append(name);
-                            }
-                            d.add(new Field("name", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
-                        }
-
-                        // Construct single de-duplicated phone term from phone terms
-                        if (!phones.isEmpty()) {
-                            StringBuilder phoneBuf = new StringBuilder();
-                            for (String phone : phones) {
-                                if (phoneBuf.length() > 0)
-                                    phoneBuf.append(" ");
-                                phoneBuf.append(phone);
-                            }
-                            d.add(new Field("phone", phoneBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
-                        }
-
-                        if (!headNames.isEmpty()) {
-                            StringBuilder nameBuf = new StringBuilder();
-                            for (String name : headNames) {
-                                if (nameBuf.length() > 0)
-                                    nameBuf.append(" ");
-                                nameBuf.append(name);
-                            }
-                            d.add(new Field("headName", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
-                        }
-
-                        try {
-                            indexWriter.addDocument(d);
-                        } catch (IOException e) {
-                            log.warn("failed to add document to index", e);
-                        }
-                    }
-                });
-
+                jdbcTemplate.query(streamStmtCreator, rowHandler);
                 indexWriter.commit();
-
             } finally {
                 indexWriter.close();
             }
-
         } catch (Exception e) {
             log.warn("indexing process aborted early", e);
         }
@@ -272,6 +140,26 @@ public class IndexImpl implements Index {
 
         if (log.isInfoEnabled()) {
             log.info(String.format("index rebuild complete (total %.3f sec)", (System.currentTimeMillis() - start) / 1000.0));
+        }
+    }
+
+    private IndexWriter createIndexWriter() throws IOException {
+        Analyzer analyzer = new IndexAnalyzer();
+
+        IndexWriterConfig config = new IndexWriterConfig(LUCENE_36, analyzer);
+        config.setRAMBufferSizeMB(5.0f);
+        config.setOpenMode(CREATE);
+
+        Directory indexDir = FSDirectory.open(indexFile);
+        return new IndexWriter(indexDir, config);
+    }
+
+    static class IndexAnalyzer extends ReusableAnalyzerBase {
+        @Override
+        protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
+            Tokenizer src = new WhitespaceTokenizer(LUCENE_36, reader);
+            TokenStream tok = new LowerCaseFilter(LUCENE_36, src);
+            return new TokenStreamComponents(src, tok);
         }
     }
 
@@ -287,74 +175,13 @@ public class IndexImpl implements Index {
             Directory indexDir = FSDirectory.open(indexFile);
             IndexReader reader = IndexReader.open(indexDir);
             IndexSearcher searcher = new IndexSearcher(reader);
+            QueryParser parser = new IndexQueryParser(analyzer);
 
-            // Build a query from the supplied parameters
-            StringBuilder qstr = new StringBuilder();
-
-            if (params.containsKey("dip")) {
-                // We boost dip so it dominates score
-                qstr.append(String.format("dip:%s^4", params.get("dip")));
-            }
-
-            if (params.containsKey("name")) {
-                String nameVal = params.get("name").toString();
-                for (String name : nameVal.split("\\s+")) {
-                    if (qstr.length() > 0)
-                        qstr.append(" ");
-                    qstr.append(String.format("name:%1$s~", name));
-                }
-            }
-
-            if (params.containsKey("age")) {
-                if (qstr.length() > 0)
-                    qstr.append(" ");
-                int age = Integer.parseInt(params.get("age").toString());
-                qstr.append(String.format("age:[%d TO %d]", age - 3, age + 3));
-            }
-
-            if (params.containsKey("phone")) {
-                if (qstr.length() > 0)
-                    qstr.append(" ");
-                String cleansedPhone = params.get("phone").toString().replaceAll("[^0-9]", "");
-                qstr.append(String.format("phone:%1$s~", cleansedPhone));
-            }
-
-            if (params.containsKey("district")) {
-                if (qstr.length() > 0)
-                    qstr.append(" ");
-                qstr.append(String.format("district:%1$s~", params.get("district")));
-            }
-
-            if (params.containsKey("community")) {
-                if (qstr.length() > 0)
-                    qstr.append(" ");
-                qstr.append(String.format("community:%1$s~", params.get("community")));
-            }
-
-            if (params.containsKey("headName")) {
-                if (qstr.length() > 0)
-                    qstr.append(" ");
-                qstr.append(String.format("headName:%1$s~", params.get("headName")));
-            }
-
-            QueryParser parser = new QueryParser(LUCENE_36, "dip", analyzer) {
-                @Override
-                protected Query getRangeQuery(String field, String part1, String part2, boolean inclusive) throws ParseException {
-                    if ("age".equals(field)) {
-                        int start = Integer.parseInt(part1), end = Integer.parseInt(part2);
-                        return NumericRangeQuery.newIntRange("age", start, end, inclusive, inclusive);
-                    }
-                    return super.getRangeQuery(field, part1, part2, inclusive);
-                }
-            };
-
-            parser.setAllowLeadingWildcard(true); // Just in case we want to do sql %-style queries
-            parser.setAutoGeneratePhraseQueries(true); // Lazy way to parse phrases - works for this system
-            parser.setDefaultOperator(QueryParser.Operator.OR);  // Because we rely on it, it's default
-
-            Query query = parser.parse(qstr.toString());
+            String q = buildQuery(params);
+            Query query = parser.parse(q);
             TopDocs hits = searcher.search(query, maxResults);
 
+            // Convert documents into results map for page
             for (ScoreDoc sd : hits.scoreDocs) {
                 Document d = searcher.doc(sd.doc);
                 Map<String, Object> result = new HashMap<>();
@@ -372,5 +199,204 @@ public class IndexImpl implements Index {
         }
 
         return results;
+    }
+
+    private String buildQuery(Map<String, Object> params) {
+
+        StringBuilder qstr = new StringBuilder();
+
+        if (params.containsKey("dip")) {
+            // We boost dip so it dominates score
+            qstr.append(String.format("dip:%s^4", params.get("dip")));
+        }
+
+        if (params.containsKey("name")) {
+            String nameVal = params.get("name").toString();
+            for (String name : nameVal.split("\\s+")) {
+                if (qstr.length() > 0)
+                    qstr.append(" ");
+                qstr.append(String.format("name:%1$s~", name));
+            }
+        }
+
+        if (params.containsKey("age")) {
+            if (qstr.length() > 0)
+                qstr.append(" ");
+            int age = Integer.parseInt(params.get("age").toString());
+            qstr.append(String.format("age:[%d TO %d]", age - 3, age + 3));
+        }
+
+        if (params.containsKey("phone")) {
+            if (qstr.length() > 0)
+                qstr.append(" ");
+            String cleansedPhone = params.get("phone").toString().replaceAll("[^0-9]", "");
+            qstr.append(String.format("phone:%1$s~", cleansedPhone));
+        }
+
+        if (params.containsKey("district")) {
+            if (qstr.length() > 0)
+                qstr.append(" ");
+            qstr.append(String.format("district:%1$s~", params.get("district")));
+        }
+
+        if (params.containsKey("community")) {
+            if (qstr.length() > 0)
+                qstr.append(" ");
+            qstr.append(String.format("community:%1$s~", params.get("community")));
+        }
+
+        if (params.containsKey("headName")) {
+            if (qstr.length() > 0)
+                qstr.append(" ");
+            qstr.append(String.format("headName:%1$s~", params.get("headName")));
+        }
+        return qstr.toString();
+    }
+
+    static class MySqlStreamingStatementCreator implements PreparedStatementCreator {
+
+        private String query;
+
+        public MySqlStreamingStatementCreator(String query) {
+            this.query = query;
+        }
+
+        @Override
+        public PreparedStatement createPreparedStatement(Connection con) throws SQLException {
+            // Configures the MySQL java connector to stream data; prevents filling up memory for large results
+            PreparedStatement stmt = con.prepareStatement(query, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+            stmt.setFetchSize(Integer.MIN_VALUE);
+            return stmt;
+        }
+    }
+
+    static class IndexRowHandler implements RowCallbackHandler {
+
+        private static final Set<String> NAME_LABELS = new HashSet<>(Arrays.asList("firstName", "middleName", "lastName"));
+        private static final Set<String> PHONE_LABELS = new HashSet<>(Arrays.asList("phoneNumber", "otherPhoneNumber", "pointOfContactPhoneNumber"));
+        private static final Set<String> HEAD_NAME_LABELS = new HashSet<>(Arrays.asList("hhFirstName", "hhMiddleName", "hhLastName"));
+
+        private int processed = 0;
+        private IndexWriter indexWriter;
+
+        public IndexRowHandler(IndexWriter indexWriter) {
+            this.indexWriter = indexWriter;
+        }
+
+        @Override
+        public void processRow(ResultSet rs) throws SQLException {
+
+            if (log.isDebugEnabled()) {
+                log.debug(Integer.toString(++processed) + ": " + rs.getString("extId"));
+            }
+
+            // Used to get field count and labels
+            ResultSetMetaData md = rs.getMetaData();
+
+            /*
+               Used to merge multiple fields into single term without duplication.
+               This prevents skewing the scores when value is repeated multiple times.
+             */
+            Set<String> names = new HashSet<>();
+            Set<String> phones = new HashSet<>();
+            Set<String> headNames = new HashSet<>();
+
+            // Populate document using result set
+            Document d = new Document();
+            for (int col = 1; col <= md.getColumnCount(); col++) {
+                Fieldable f;
+                String label = md.getColumnLabel(col);
+                if (rs.getObject(label) != null) {
+                    if ("dip".equals(label)) {
+                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.YES);
+                    } else if ("extId".equals(label)) {
+                        // Field is only used to show result, not used in search
+                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
+                    } else if ("age".equals(label)) {
+                        NumericField nf = new NumericField(label, 1, Field.Store.YES, true);
+                        nf.setIntValue(rs.getInt(label));
+                        f = nf;
+                    } else if (PHONE_LABELS.contains(label)) {
+                        // Field is only used to show result, not used in search
+                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
+                        for (String phone : rs.getString(label).split("\\s+")) {
+                            phones.add(phone);
+                        }
+                    } else if (NAME_LABELS.contains(label)) {
+                        // Field is only used to show result, not used in search
+                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
+                        for (String name : rs.getString(label).split("\\s+")) {
+                            names.add(name);
+                        }
+                    } else if (HEAD_NAME_LABELS.contains(label)) {
+                        // Field is only used to show result, not used in search
+                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
+                        for (String name : rs.getString(label).split("\\s+")) {
+                            headNames.add(name);
+                        }
+                    } else {
+                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.YES);
+                    }
+                    d.add(f);
+                }
+            }
+
+            // Construct single de-duplicated name term from name terms
+            if (!names.isEmpty()) {
+                StringBuilder nameBuf = new StringBuilder();
+                for (String name : names) {
+                    if (nameBuf.length() > 0)
+                        nameBuf.append(" ");
+                    nameBuf.append(name);
+                }
+                d.add(new Field("name", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
+            }
+
+            // Construct single de-duplicated phone term from phone terms
+            if (!phones.isEmpty()) {
+                StringBuilder phoneBuf = new StringBuilder();
+                for (String phone : phones) {
+                    if (phoneBuf.length() > 0)
+                        phoneBuf.append(" ");
+                    phoneBuf.append(phone);
+                }
+                d.add(new Field("phone", phoneBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
+            }
+
+            if (!headNames.isEmpty()) {
+                StringBuilder nameBuf = new StringBuilder();
+                for (String name : headNames) {
+                    if (nameBuf.length() > 0)
+                        nameBuf.append(" ");
+                    nameBuf.append(name);
+                }
+                d.add(new Field("headName", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
+            }
+
+            try {
+                indexWriter.addDocument(d);
+            } catch (IOException e) {
+                log.warn("failed to add document to index", e);
+            }
+        }
+    }
+
+    static class IndexQueryParser extends QueryParser {
+
+        public IndexQueryParser(Analyzer analyzer) {
+            super(LUCENE_36, "dip", analyzer);
+            setAllowLeadingWildcard(true); // Just in case we want to do sql %-style queries
+            setAutoGeneratePhraseQueries(true); // Lazy way to parse phrases - works for this system
+            setDefaultOperator(QueryParser.Operator.OR);  // Because we rely on it, it's default
+        }
+
+        @Override
+        protected Query getRangeQuery(String field, String part1, String part2, boolean inclusive) throws ParseException {
+            if ("age".equals(field)) {
+                int start = Integer.parseInt(part1), end = Integer.parseInt(part2);
+                return NumericRangeQuery.newIntRange("age", start, end, inclusive, inclusive);
+            }
+            return super.getRangeQuery(field, part1, part2, inclusive);
+        }
     }
 }
