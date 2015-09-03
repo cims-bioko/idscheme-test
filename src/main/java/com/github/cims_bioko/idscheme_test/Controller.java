@@ -42,9 +42,13 @@ public class Controller {
         // Put results in the model
         try {
             boolean manualMode = "on".equals(params.get("manualOverride"));
-            String query = manualMode? params.get("query").toString() : index.buildQuery(params);
+            String query = manualMode ? params.get("query").toString() : index.buildQuery(params);
             model.put("query", query);
-            model.put("results", index.search(query, 15));
+            SearchResult result = index.search(query, 15);
+            model.put("results", result.getResults());
+            String summaryMessage = String.format("Showing %s most relevant of %s total hits",
+                    result.getResults().size(), result.getTotalHits());
+            model.put("resultsSummary", summaryMessage);
         } catch (NoIndexException e) {
             model.put("message", "Index does not exist.");
             model.put("showBuildLink", true);

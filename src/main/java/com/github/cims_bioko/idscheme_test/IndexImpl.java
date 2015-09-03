@@ -218,9 +218,7 @@ public class IndexImpl implements Index {
     }
 
     @Override
-    public List<Map<String, Object>> search(String q, int maxResults) throws NoIndexException, BadQueryException, IOException {
-
-        List<Map<String, Object>> results = new ArrayList<>();
+    public SearchResult search(String q, int maxResults) throws NoIndexException, BadQueryException, IOException {
 
         try {
             Analyzer analyzer = new IndexAnalyzer();
@@ -239,6 +237,7 @@ public class IndexImpl implements Index {
             log.info("found {} hits, showing top {}", hits.totalHits, maxResults);
 
             // Convert documents into results map for page
+            List<Map<String, Object>> results = new ArrayList<>();
             for (ScoreDoc sd : hits.scoreDocs) {
                 Document d = searcher.doc(sd.doc);
                 Map<String, Object> result = new HashMap<>();
@@ -249,13 +248,13 @@ public class IndexImpl implements Index {
                 results.add(result);
             }
 
+            return new SearchResult(hits.totalHits, results);
+
         } catch (CorruptIndexException | NoSuchDirectoryException nsde) {
             throw new NoIndexException();
         } catch (ParseException e) {
             throw new BadQueryException();
         }
-
-        return results;
     }
 
     static class MySqlStreamingStatementCreator implements PreparedStatementCreator {
