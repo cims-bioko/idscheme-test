@@ -1,5 +1,8 @@
 package com.github.cims_bioko.idscheme_test;
 
+import com.github.cims_bioko.idscheme_test.exceptions.BadQueryException;
+import com.github.cims_bioko.idscheme_test.exceptions.NoIndexException;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.ReusableAnalyzerBase;
@@ -10,6 +13,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.document.NumericField;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -70,17 +74,17 @@ public class IndexImpl implements Index {
         this.indexFile = indexFile;
     }
 
-    @Resource(name="preQuery")
+    @Resource(name = "preQuery")
     public void setPreQuery(String ddl) {
         this.preQuery = ddl;
     }
 
-    @Resource(name="query")
+    @Resource(name = "query")
     public void setQuery(String query) {
         this.query = query;
     }
 
-    @Resource(name="postQuery")
+    @Resource(name = "postQuery")
     public void setPostQuery(String ddl) {
         this.postQuery = ddl;
     }
@@ -192,15 +196,13 @@ public class IndexImpl implements Index {
                                     for (String phone : rs.getString(label).split("\\s+")) {
                                         phones.add(phone);
                                     }
-                                }
-                                else if (NAME_LABELS.contains(label)) {
+                                } else if (NAME_LABELS.contains(label)) {
                                     // Field is only used to show result, not used in search
                                     f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
                                     for (String name : rs.getString(label).split("\\s+")) {
                                         names.add(name);
                                     }
-                                }
-                                else if (HEAD_NAME_LABELS.contains(label)) {
+                                } else if (HEAD_NAME_LABELS.contains(label)) {
                                     // Field is only used to show result, not used in search
                                     f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
                                     for (String name : rs.getString(label).split("\\s+")) {
@@ -221,7 +223,7 @@ public class IndexImpl implements Index {
                                     nameBuf.append(" ");
                                 nameBuf.append(name);
                             }
-                            d.add( new Field("name", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES) );
+                            d.add(new Field("name", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
                         }
 
                         // Construct single de-duplicated phone term from phone terms
@@ -232,7 +234,7 @@ public class IndexImpl implements Index {
                                     phoneBuf.append(" ");
                                 phoneBuf.append(phone);
                             }
-                            d.add( new Field("phone", phoneBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES) );
+                            d.add(new Field("phone", phoneBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
                         }
 
                         if (!headNames.isEmpty()) {
@@ -242,7 +244,7 @@ public class IndexImpl implements Index {
                                     nameBuf.append(" ");
                                 nameBuf.append(name);
                             }
-                            d.add( new Field("headName", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES) );
+                            d.add(new Field("headName", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
                         }
 
                         try {
@@ -274,7 +276,7 @@ public class IndexImpl implements Index {
     }
 
     @Override
-    public List<Map<String, Object>> search(Map<String, Object> params, int maxResults) throws NoIndexException {
+    public List<Map<String, Object>> search(Map<String, Object> params, int maxResults) throws NoIndexException, BadQueryException, IOException {
 
         List<Map<String, Object>> results = new ArrayList<>();
 
@@ -363,10 +365,10 @@ public class IndexImpl implements Index {
                 results.add(result);
             }
 
-        } catch (NoSuchDirectoryException nsde) {
+        } catch (CorruptIndexException | NoSuchDirectoryException nsde) {
             throw new NoIndexException();
-        } catch (Exception e) {
-            log.warn("failed to execute search", e);
+        } catch (ParseException e) {
+            throw new BadQueryException();
         }
 
         return results;

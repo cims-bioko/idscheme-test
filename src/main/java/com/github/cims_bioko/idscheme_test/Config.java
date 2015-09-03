@@ -14,18 +14,18 @@ import java.io.IOException;
 import java.nio.file.Files;
 
 @Configuration
-public class IndexConfig {
+public class Config {
 
     @Autowired
     private Environment environment;
 
-    @Value("classpath:pre.sql")
+    @Value("classpath:sql/pre.sql")
     private Resource preQuery;
 
-    @Value("classpath:query.sql")
+    @Value("classpath:sql/query.sql")
     private Resource query;
 
-    @Value("classpath:post.sql")
+    @Value("classpath:sql/post.sql")
     private Resource postQuery;
 
     @Bean

@@ -1,59 +1,92 @@
 <!DOCTYPE html>
 <html lang="en">
-    <style>
-        label {
-            display: block;
-            font-size: small;
-        }
-        input {
-            margin-bottom: 5px;
-        }
-        message {
-            display: block;
-            color: red;
-        }
-    </style>
-    <body>
-        {{#message}}
-        <message>{{message}} <a href="/buildIndex">Rebuild Index</a></message>
-        {{/message}}
-        <form action="/">
-            <label for="dip">ID #</label>
-            <input id="dip" name="dip" {{#dip}} value="{{dip}}"{{/dip}}>
-            <br/>
+<style>
+    label {
+    display: block;
+    font-size: small;
+    }
+    input {
+    margin-bottom: 5px;
+    }
+    message {
+    display: block;
+    color: red;
+    }
+</style>
+<body>
+{{#message}}
+<message>{{message}}</message>
+{{/message}}
+{{#showBuildLink}}
+<a href="/buildIndex">Rebuild Index</a>
+{{/showBuildLink}}
+<form action="/">
+    <label for="dip">ID #</label>
+    <input id="dip" name="dip" {{#dip}} value="{{dip}}" {{/dip}}>
+    <br/>
 
-            <label for="name">Name</label>
-            <input id="name" name="name" {{#name}} value="{{name}}"{{/name}}>
-            <br/>
+    <label for="name">Name</label>
+    <input id="name" name="name" {{#name}} value="{{name}}" {{/name}}>
+    <br/>
 
-            <label for="age">Age</label>
-            <input id="age" name="age" {{#age}} value="{{age}}"{{/age}}>
-            <br/>
+    <label for="age">Age</label>
+    <input id="age" name="age" {{#age}} value="{{age}}" {{/age}}>
+    <br/>
 
-            <label for="phone">Phone</label>
-            <input id="phone" name="phone" {{#phone}} value="{{phone}}"{{/phone}}>
-            <br/>
+    <label for="phone">Phone</label>
+    <input id="phone" name="phone" {{#phone}} value="{{phone}}" {{/phone}}>
+    <br/>
 
-            <label for="district">District</label>
-            <input id="district" name="district" {{#district}} value="{{district}}"{{/district}}>
-            <br/>
+    <label for="district">District</label>
+    <input id="district" name="district" {{#district}} value="{{district}}" {{/district}}>
+    <br/>
 
-            <label for="community">Community</label>
-            <input id="community" name="community" {{#community}} value="{{community}}"{{/community}}>
-            <br/>
+    <label for="community">Community</label>
+    <input id="community" name="community" {{#community}} value="{{community}}" {{/community}}>
+    <br/>
 
-            <label for="headName">Head of Household</label>
-            <input id="headName" name="headName" {{#headName}} value="{{headName}}"{{/headName}}>
-            <br/>
+    <label for="headName">Head of Household</label>
+    <input id="headName" name="headName" {{#headName}} value="{{headName}}" {{/headName}}>
+    <br/>
 
-            <input type="submit" />
-        </form>
-        <hr/>
-        <table>
-            <tr><th>extId</th><th>First Name</th><th>Middle Name</th><th>Last Name</th><th>Age</th><th>Phone</th><th>Other Phone</th><th>Contact Phone</th><th>District</th><th>Community</th><th>HH First</th><th>HH Middle</th><th>HH Last</th><th>Score</th></tr>
-        {{#results}}
-            <tr><td>{{extId}}</td><td>{{firstName}}</td><td>{{middleName}}</td><td>{{lastName}}</td><td>{{age}}</td><td>{{phoneNumber}}</td><td>{{otherPhoneNumber}}</td><td>{{pointOfContactPhoneNumber}}</td><td>{{district}}</td><td>{{community}}</td><td>{{hhFirstName}}</td><td>{{hhMiddleName}}</td><td>{{hhLastName}}</td><td>{{score}}</td></tr>
-        {{/results}}
-        </table>
-    </body>
+    <input type="submit"/>
+</form>
+<hr/>
+<table>
+    <tr>
+        <th>extId</th>
+        <th>First Name</th>
+        <th>Middle Name</th>
+        <th>Last Name</th>
+        <th>Age</th>
+        <th>Phone</th>
+        <th>Other Phone</th>
+        <th>Contact Phone</th>
+        <th>District</th>
+        <th>Community</th>
+        <th>HH First</th>
+        <th>HH Middle</th>
+        <th>HH Last</th>
+        <th>Score</th>
+    </tr>
+    {{#results}}
+    <tr>
+        <td>{{extId}}</td>
+        <td>{{firstName}}</td>
+        <td>{{middleName}}</td>
+        <td>{{lastName}}</td>
+        <td>{{age}}</td>
+        <td>{{phoneNumber}}</td>
+        <td>{{otherPhoneNumber}}</td>
+        <td>{{pointOfContactPhoneNumber}}</td>
+        <td>{{district}}</td>
+        <td>{{community}}</td>
+        <td>{{hhFirstName}}</td>
+        <td>{{hhMiddleName}}</td>
+        <td>{{hhLastName}}</td>
+        <td>{{score}}</td>
+    </tr>
+    {{/results}}
+</table>
+</body>
 </html>
