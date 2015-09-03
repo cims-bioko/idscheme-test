@@ -9,8 +9,8 @@ select
 	case i.otherPhoneNumber when 'null' then null else i.otherPhoneNumber end as otherPhoneNumber,
 	case i.pointOfContactPhoneNumber when 'null' then null else i.pointOfContactPhoneNumber end as pointOfContactPhoneNumber,
 	case i.pointOfContactName when 'null' then null else i.pointOfContactName end as pointOfContactName,
-	x.district,
-	x.community,
+	x.district as district,
+	x.community as community,
 	x.firstName as hhFirstName,
 	x.middleName as hhMiddleName,
 	x.lastName as hhLastName

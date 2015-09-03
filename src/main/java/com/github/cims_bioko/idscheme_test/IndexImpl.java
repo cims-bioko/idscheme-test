@@ -101,6 +101,7 @@ public class IndexImpl implements Index {
 
     private static final Set<String> NAME_LABELS = new HashSet<>(Arrays.asList("firstName", "middleName", "lastName"));
     private static final Set<String> PHONE_LABELS = new HashSet<>(Arrays.asList("phoneNumber", "otherPhoneNumber", "pointOfContactPhoneNumber"));
+    private static final Set<String> HEAD_NAME_LABELS = new HashSet<>(Arrays.asList("hhFirstName", "hhMiddleName", "hhLastName"));
 
     /**
      * Rebuilds the search index. Needs to be run before search is possible.
@@ -168,6 +169,7 @@ public class IndexImpl implements Index {
                          */
                         Set<String> names = new HashSet<>();
                         Set<String> phones = new HashSet<>();
+                        Set<String> headNames = new HashSet<>();
 
                         // Populate document using result set
                         Document d = new Document();
@@ -197,6 +199,13 @@ public class IndexImpl implements Index {
                                     for (String name : rs.getString(label).split("\\s+")) {
                                         names.add(name);
                                     }
+                                }
+                                else if (HEAD_NAME_LABELS.contains(label)) {
+                                    // Field is only used to show result, not used in search
+                                    f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
+                                    for (String name : rs.getString(label).split("\\s+")) {
+                                        headNames.add(name);
+                                    }
                                 } else {
                                     f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.YES);
                                 }
@@ -224,6 +233,16 @@ public class IndexImpl implements Index {
                                 phoneBuf.append(phone);
                             }
                             d.add( new Field("phone", phoneBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES) );
+                        }
+
+                        if (!headNames.isEmpty()) {
+                            StringBuilder nameBuf = new StringBuilder();
+                            for (String name : headNames) {
+                                if (nameBuf.length() > 0)
+                                    nameBuf.append(" ");
+                                nameBuf.append(name);
+                            }
+                            d.add( new Field("headName", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES) );
                         }
 
                         try {
@@ -296,6 +315,24 @@ public class IndexImpl implements Index {
                     qstr.append(" ");
                 String cleansedPhone = params.get("phone").toString().replaceAll("[^0-9]", "");
                 qstr.append(String.format("phone:%1$s~", cleansedPhone));
+            }
+
+            if (params.containsKey("district")) {
+                if (qstr.length() > 0)
+                    qstr.append(" ");
+                qstr.append(String.format("district:%1$s~", params.get("district")));
+            }
+
+            if (params.containsKey("community")) {
+                if (qstr.length() > 0)
+                    qstr.append(" ");
+                qstr.append(String.format("community:%1$s~", params.get("community")));
+            }
+
+            if (params.containsKey("headName")) {
+                if (qstr.length() > 0)
+                    qstr.append(" ");
+                qstr.append(String.format("headName:%1$s~", params.get("headName")));
             }
 
             QueryParser parser = new QueryParser(LUCENE_36, "dip", analyzer) {
