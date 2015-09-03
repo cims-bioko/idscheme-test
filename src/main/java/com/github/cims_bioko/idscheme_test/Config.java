@@ -2,6 +2,7 @@ package com.github.cims_bioko.idscheme_test;
 
 import com.samskivert.mustache.Mustache;
 
+import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.mustache.MustacheEnvironmentCollector;
@@ -9,11 +10,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.Resource;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
-import org.springframework.security.config.annotation.web.servlet.configuration.EnableWebMvcSecurity;
 
 import java.io.IOException;
-import java.nio.file.Files;
 
 @Configuration
 public class Config {
@@ -44,16 +42,16 @@ public class Config {
 
     @Bean
     public String preQuery() throws IOException {
-        return new String(Files.readAllBytes(preQuery.getFile().toPath()));
+        return IOUtils.toString(preQuery.getInputStream());
     }
 
     @Bean
     public String query() throws IOException {
-        return new String(Files.readAllBytes(query.getFile().toPath()));
+        return IOUtils.toString(query.getInputStream());
     }
 
     @Bean
     public String postQuery() throws IOException {
-        return new String(Files.readAllBytes(postQuery.getFile().toPath()));
+        return IOUtils.toString(postQuery.getInputStream());
     }
 }
