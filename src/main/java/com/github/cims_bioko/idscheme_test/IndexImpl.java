@@ -214,7 +214,13 @@ public class IndexImpl implements Index {
         if (params.containsKey("headName")) {
             if (qstr.length() > 0)
                 qstr.append(" ");
-            qstr.append(String.format("headName:%1$s~", params.get("headName")));
+            qstr.append("headName:(");
+            String nameVal = params.get("headName").toString();
+            for (String name : nameVal.split("\\s+")) {
+                qstr.append(String.format("%s~ ", name));
+            }
+            qstr.deleteCharAt(qstr.length() - 1);
+            qstr.append(")");
         }
 
         return qstr.toString();
