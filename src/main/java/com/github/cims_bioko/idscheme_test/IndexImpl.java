@@ -196,19 +196,19 @@ public class IndexImpl implements Index {
             if (qstr.length() > 0)
                 qstr.append(" ");
             String cleansedPhone = params.get("phone").toString().replaceAll("[^0-9]", "");
-            qstr.append(String.format("phone:%1$s~", cleansedPhone));
+            qstr.append(String.format("phone:%s~", cleansedPhone));
         }
 
         if (params.containsKey("district")) {
             if (qstr.length() > 0)
                 qstr.append(" ");
-            qstr.append(String.format("district:%1$s~", params.get("district")));
+            qstr.append(String.format("district:%s~", params.get("district")));
         }
 
         if (params.containsKey("community")) {
             if (qstr.length() > 0)
                 qstr.append(" ");
-            qstr.append(String.format("community:%1$s~", params.get("community")));
+            qstr.append(String.format("community:%s~", params.get("community")));
         }
 
         if (params.containsKey("headName")) {
