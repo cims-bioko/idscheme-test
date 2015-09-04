@@ -174,12 +174,15 @@ public class IndexImpl implements Index {
         }
 
         if (params.containsKey("name")) {
+            if (qstr.length() > 0)
+                qstr.append(" ");
+            qstr.append("name:(");
             String nameVal = params.get("name").toString();
             for (String name : nameVal.split("\\s+")) {
-                if (qstr.length() > 0)
-                    qstr.append(" ");
-                qstr.append(String.format("name:%1$s~", name));
+                qstr.append(String.format("%s~ ", name));
             }
+            qstr.deleteCharAt(qstr.length() - 1);
+            qstr.append(")");
         }
 
         if (params.containsKey("age")) {
