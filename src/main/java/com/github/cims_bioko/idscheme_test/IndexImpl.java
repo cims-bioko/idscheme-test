@@ -4,11 +4,11 @@ import com.github.cims_bioko.idscheme_test.exceptions.BadQueryException;
 import com.github.cims_bioko.idscheme_test.exceptions.NoIndexException;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharTokenizer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.ReusableAnalyzerBase;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.WhitespaceTokenizer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
@@ -24,9 +24,11 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.spell.JaroWinklerDistance;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.NoSuchDirectoryException;
+import org.apache.lucene.util.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -143,8 +145,27 @@ public class IndexImpl implements Index {
         }
     }
 
+    static class AlphaNumericTokenizer extends CharTokenizer {
+        public AlphaNumericTokenizer(Version matchVersion, Reader in) {
+            super(matchVersion, in);
+        }
+        @Override
+        protected boolean isTokenChar(int c) {
+            return Character.isLetterOrDigit(c);
+        }
+    }
+
+    static class CustomAnalyzer extends ReusableAnalyzerBase {
+        @Override
+        protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
+            Tokenizer src = new AlphaNumericTokenizer(LUCENE_36, reader);
+            TokenStream tok = new LowerCaseFilter(LUCENE_36, src);
+            return new TokenStreamComponents(src, tok);
+        }
+    }
+
     private IndexWriter createIndexWriter() throws IOException {
-        Analyzer analyzer = new IndexAnalyzer();
+        Analyzer analyzer = new CustomAnalyzer();
 
         IndexWriterConfig config = new IndexWriterConfig(LUCENE_36, analyzer);
         config.setRAMBufferSizeMB(5.0f);
@@ -154,14 +175,6 @@ public class IndexImpl implements Index {
         return new IndexWriter(indexDir, config);
     }
 
-    static class IndexAnalyzer extends ReusableAnalyzerBase {
-        @Override
-        protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
-            Tokenizer src = new WhitespaceTokenizer(LUCENE_36, reader);
-            TokenStream tok = new LowerCaseFilter(LUCENE_36, src);
-            return new TokenStreamComponents(src, tok);
-        }
-    }
 
     @Override
     public String buildQuery(Map<String, Object> params) {
@@ -234,7 +247,7 @@ public class IndexImpl implements Index {
     public SearchResult search(String q, int maxResults) throws NoIndexException, BadQueryException, IOException {
 
         try {
-            Analyzer analyzer = new IndexAnalyzer();
+            Analyzer analyzer = new CustomAnalyzer();
 
             // Open the index for the search
             Directory indexDir = FSDirectory.open(indexFile);
@@ -318,6 +331,8 @@ public class IndexImpl implements Index {
             Set<String> phones = new HashSet<>();
             Set<String> headNames = new HashSet<>();
 
+            boolean droppedFuzzy = false;
+
             // Populate document using result set
             Document d = new Document();
             for (int col = 1; col <= md.getColumnCount(); col++) {
@@ -340,15 +355,35 @@ public class IndexImpl implements Index {
                             phones.add(phone);
                         }
                     } else if (NAME_LABELS.contains(label)) {
+                        String rawNames = rs.getString(label);
                         // Field is only used to show result, not used in search
-                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
-                        for (String name : rs.getString(label).split("\\s+")) {
+                        f = new Field(label, rawNames, Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
+                        for (String name : rawNames.split("\\s+")) {
+                            name = name.replaceAll("(?U)\\W+","").toLowerCase();
+                            if (names.contains(name)) {
+                                continue;
+                            }
+                            if (containsFuzzyMatch(names, name)) {
+                                log.debug("dropping fuzzy duplicate: {}", name);
+                                droppedFuzzy = true;
+                                continue;
+                            }
                             names.add(name);
                         }
                     } else if (HEAD_NAME_LABELS.contains(label)) {
+                        String rawNames = rs.getString(label);
                         // Field is only used to show result, not used in search
-                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
-                        for (String name : rs.getString(label).split("\\s+")) {
+                        f = new Field(label, rawNames, Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
+                        for (String name : rawNames.split("\\s+")) {
+                            name = name.replaceAll("(?U)\\W+","").toLowerCase();
+                            if (headNames.contains(name)) {
+                                continue;
+                            }
+                            if (containsFuzzyMatch(headNames, name)) {
+                                log.debug("dropping fuzzy duplicate: {}", name);
+                                droppedFuzzy = true;
+                                continue;
+                            }
                             headNames.add(name);
                         }
                     } else {
@@ -356,6 +391,11 @@ public class IndexImpl implements Index {
                     }
                     d.add(f);
                 }
+            }
+
+            if (droppedFuzzy) {
+                log.debug("indexing names: {}", names);
+                log.debug("indexing head names: {}", headNames);
             }
 
             // Construct single de-duplicated name term from name terms
@@ -395,6 +435,17 @@ public class IndexImpl implements Index {
             } catch (IOException e) {
                 log.warn("failed to add document to index", e);
             }
+        }
+
+        private static final float MAX_SIMILARITY = 0.99f;
+
+        private boolean containsFuzzyMatch(Set<String> values, String value) {
+            JaroWinklerDistance jwd = new JaroWinklerDistance();
+            for (String v : values) {
+                if (jwd.getDistance(v, value) > MAX_SIMILARITY)
+                    return true;
+            }
+            return false;
         }
     }
 
