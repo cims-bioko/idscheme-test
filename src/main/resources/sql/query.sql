@@ -20,3 +20,4 @@ left join
 	x on i.uuid = x.individual_uuid
 where
 	i.deleted != 1
+	and extId != 'UNK';
