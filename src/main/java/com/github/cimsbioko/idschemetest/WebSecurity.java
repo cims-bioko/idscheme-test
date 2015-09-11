@@ -1,4 +1,4 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;

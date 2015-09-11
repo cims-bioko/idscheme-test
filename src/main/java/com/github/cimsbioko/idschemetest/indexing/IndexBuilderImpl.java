@@ -1,5 +1,7 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest.indexing;
 
+
+import com.github.cimsbioko.idschemetest.shared.CustomAnalyzer;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexWriter;

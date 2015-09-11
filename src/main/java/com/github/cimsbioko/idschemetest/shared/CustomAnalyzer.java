@@ -1,4 +1,4 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest.shared;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
@@ -14,7 +14,7 @@ import static org.apache.lucene.util.Version.LUCENE_36;
  * A custom lucene {@link Analyzer} that processes input during indexing. It processes input into a
  * stream of lowercase alphanumeric tokens.
  */
-class CustomAnalyzer extends ReusableAnalyzerBase {
+public class CustomAnalyzer extends ReusableAnalyzerBase {
     @Override
     protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
         Tokenizer src = new AlphaNumericTokenizer(LUCENE_36, reader);

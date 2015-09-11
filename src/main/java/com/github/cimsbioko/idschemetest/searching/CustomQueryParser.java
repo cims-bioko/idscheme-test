@@ -1,4 +1,4 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest.searching;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryParser.ParseException;
@@ -12,7 +12,7 @@ import static org.apache.lucene.util.Version.LUCENE_36;
  * A customized lucene {@link QueryParser} that overrides some default configuration and interprets
  * age terms as numeric range queries.
  */
-class CustomQueryParser extends QueryParser {
+public class CustomQueryParser extends QueryParser {
 
     public CustomQueryParser(Analyzer analyzer) {
         super(LUCENE_36, "dip", analyzer);

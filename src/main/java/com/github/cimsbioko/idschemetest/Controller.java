@@ -1,7 +1,11 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest;
 
-import com.github.cims_bioko.idscheme_test.exceptions.BadQueryException;
-import com.github.cims_bioko.idscheme_test.exceptions.NoIndexException;
+import com.github.cimsbioko.idschemetest.exceptions.BadQueryException;
+import com.github.cimsbioko.idschemetest.exceptions.NoIndexException;
+import com.github.cimsbioko.idschemetest.indexing.IndexBuilder;
+import com.github.cimsbioko.idschemetest.searching.IndexSearcher;
+import com.github.cimsbioko.idschemetest.searching.QueryBuilder;
+import com.github.cimsbioko.idschemetest.searching.SearchResult;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
@@ -21,7 +25,7 @@ import java.util.Map;
  */
 @org.springframework.stereotype.Controller
 @EnableAutoConfiguration
-@ComponentScan(basePackages = {"com.github.cims_bioko.idscheme_test"})
+@ComponentScan(basePackages = {"com.github.cimsbioko.idschemetest"})
 @Secured("USER")
 public class Controller {
 

@@ -1,11 +1,11 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest.searching;
 
 import java.util.Map;
 
 /**
  * Builds a lucene query string for indexed individuals.
  */
-class IndividualQueryBuilder implements QueryBuilder {
+public class IndividualQueryBuilder implements QueryBuilder {
 
     @Override
     public String buildQuery(Map<String, Object> params) {

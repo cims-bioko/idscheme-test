@@ -1,4 +1,4 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest.indexing;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCreator;
@@ -13,7 +13,7 @@ import java.sql.SQLException;
  * configured to stream data efficiently using options for the MySQL java connector. It prevents
  * filling up memory for extremely large results.
  */
-class MySqlStreamingStatementCreator implements PreparedStatementCreator {
+public class MySqlStreamingStatementCreator implements PreparedStatementCreator {
 
     private String query;
 

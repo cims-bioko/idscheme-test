@@ -1,4 +1,4 @@
-package com.github.cims_bioko.idscheme_test.exceptions;
+package com.github.cimsbioko.idschemetest.exceptions;
 
 /**
  * A base class for all application exceptions.

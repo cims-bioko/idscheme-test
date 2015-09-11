@@ -1,10 +1,10 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest.searching;
 
 import java.util.Map;
 
 /**
  * Builds a lucene query language query string from the specified parameters.
  */
-interface QueryBuilder {
+public interface QueryBuilder {
     String buildQuery(Map<String, Object> params);
 }

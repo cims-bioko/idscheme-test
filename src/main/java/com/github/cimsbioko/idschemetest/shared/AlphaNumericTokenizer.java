@@ -1,4 +1,4 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest.shared;
 
 import org.apache.lucene.analysis.CharTokenizer;
 import org.apache.lucene.analysis.Tokenizer;
@@ -10,7 +10,7 @@ import java.io.Reader;
  * A custom lucene {@link Tokenizer} that is used to generate tokens from an input stream. It defines
  * tokens as being only Alphanumeric strings. All other input is considered as part of a delimiter.
  */
-class AlphaNumericTokenizer extends CharTokenizer {
+public class AlphaNumericTokenizer extends CharTokenizer {
     public AlphaNumericTokenizer(Version matchVersion, Reader in) {
         super(matchVersion, in);
     }

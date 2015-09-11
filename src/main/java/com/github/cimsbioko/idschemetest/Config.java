@@ -1,5 +1,11 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest;
 
+import com.github.cimsbioko.idschemetest.indexing.IndexBuilder;
+import com.github.cimsbioko.idschemetest.indexing.IndexBuilderImpl;
+import com.github.cimsbioko.idschemetest.searching.IndexSearcher;
+import com.github.cimsbioko.idschemetest.searching.IndexSearcherImpl;
+import com.github.cimsbioko.idschemetest.searching.IndividualQueryBuilder;
+import com.github.cimsbioko.idschemetest.searching.QueryBuilder;
 import com.samskivert.mustache.Mustache;
 
 import org.apache.commons.io.IOUtils;
@@ -78,7 +84,7 @@ public class Config {
     }
 
     @Bean
-    IndexSearcher indexSearcher() {
+    public IndexSearcher indexSearcher() {
         return new IndexSearcherImpl();
     }
 }

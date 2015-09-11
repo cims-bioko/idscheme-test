@@ -1,7 +1,8 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest.searching;
 
-import com.github.cims_bioko.idscheme_test.exceptions.BadQueryException;
-import com.github.cims_bioko.idscheme_test.exceptions.NoIndexException;
+import com.github.cimsbioko.idschemetest.shared.CustomAnalyzer;
+import com.github.cimsbioko.idschemetest.exceptions.BadQueryException;
+import com.github.cimsbioko.idschemetest.exceptions.NoIndexException;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;

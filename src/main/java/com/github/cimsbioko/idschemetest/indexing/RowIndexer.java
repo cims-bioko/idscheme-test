@@ -1,4 +1,4 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest.indexing;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -23,7 +23,7 @@ import java.util.Set;
  * A callback for {@link JdbcTemplate} that indexes our query results as a lucene document using
  * the supplied {@link IndexWriter}.
  */
-class RowIndexer implements RowCallbackHandler {
+public class RowIndexer implements RowCallbackHandler {
 
     private static final Logger log = LoggerFactory.getLogger(RowIndexer.class);
 

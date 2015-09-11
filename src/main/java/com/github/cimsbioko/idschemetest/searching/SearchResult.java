@@ -1,4 +1,4 @@
-package com.github.cims_bioko.idscheme_test;
+package com.github.cimsbioko.idschemetest.searching;
 
 import java.util.List;
 import java.util.Map;
@@ -17,11 +17,11 @@ public class SearchResult {
         this.results = results;
     }
 
-    int getTotalHits() {
+    public int getTotalHits() {
         return totalHits;
     }
 
-    List<Map<String, Object>> getResults() {
+    public List<Map<String, Object>> getResults() {
         return results;
     }
 }

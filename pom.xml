@@ -10,7 +10,7 @@
         <version>1.2.5.RELEASE</version>
     </parent>
 
-    <groupId>com.github.cims-bioko</groupId>
+    <groupId>com.github.cimsbioko</groupId>
     <artifactId>idscheme-test</artifactId>
     <version>1.0-SNAPSHOT</version>
 
