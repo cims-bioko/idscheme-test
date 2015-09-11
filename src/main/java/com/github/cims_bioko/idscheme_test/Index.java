@@ -4,7 +4,6 @@ import com.github.cims_bioko.idscheme_test.exceptions.BadQueryException;
 import com.github.cims_bioko.idscheme_test.exceptions.NoIndexException;
 
 import java.io.IOException;
-import java.util.Map;
 
 public interface Index {
 
