@@ -54,4 +54,9 @@ public class Config {
     public String postQuery() throws IOException {
         return IOUtils.toString(postQuery.getInputStream());
     }
+
+    @Bean
+    public QueryBuilder queryBuilder() {
+        return new IndividualQueryBuilder();
+    }
 }

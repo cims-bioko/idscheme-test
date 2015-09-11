@@ -60,6 +60,10 @@ import javax.annotation.Resource;
 import static org.apache.lucene.index.IndexWriterConfig.OpenMode.CREATE;
 import static org.apache.lucene.util.Version.LUCENE_36;
 
+/**
+ * An abstract search index for use with our web controller. It provides operations to build and
+ * search an index based on the supplied queries.
+ */
 @Component
 public class IndexImpl implements Index {
 
@@ -120,11 +124,14 @@ public class IndexImpl implements Index {
         }
 
         try {
-            IndexWriter indexWriter = createIndexWriter();
-            IndexRowHandler rowHandler = new IndexRowHandler(indexWriter);
-
+            Analyzer analyzer = new CustomAnalyzer();
+            IndexWriterConfig config = new IndexWriterConfig(LUCENE_36, analyzer);
+            config.setRAMBufferSizeMB(5.0f);
+            config.setOpenMode(CREATE);
+            Directory indexDir = FSDirectory.open(indexFile);
+            IndexWriter indexWriter = new IndexWriter(indexDir, config);
+            RowIndexer rowHandler = new RowIndexer(indexWriter);
             PreparedStatementCreator streamStmtCreator = new MySqlStreamingStatementCreator(query);
-
             try {
                 jdbcTemplate.query(streamStmtCreator, rowHandler);
                 indexWriter.commit();
@@ -145,36 +152,52 @@ public class IndexImpl implements Index {
         }
     }
 
-    static class AlphaNumericTokenizer extends CharTokenizer {
-        public AlphaNumericTokenizer(Version matchVersion, Reader in) {
-            super(matchVersion, in);
-        }
-        @Override
-        protected boolean isTokenChar(int c) {
-            return Character.isLetterOrDigit(c);
+    @Override
+    public SearchResult search(String q, int maxResults) throws NoIndexException, BadQueryException, IOException {
+
+        try {
+            Analyzer analyzer = new CustomAnalyzer();
+
+            // Open the index for the search
+            Directory indexDir = FSDirectory.open(indexFile);
+            IndexReader reader = IndexReader.open(indexDir);
+            IndexSearcher searcher = new IndexSearcher(reader);
+            QueryParser parser = new CustomQueryParser(analyzer);
+
+            log.info("running query: '{}'", q);
+
+            Query query = parser.parse(q);
+            TopDocs hits = searcher.search(query, maxResults);
+
+            log.info("found {} hits, showing top {}", hits.totalHits, maxResults);
+
+            // Convert documents into results map for page
+            List<Map<String, Object>> results = new ArrayList<>();
+            for (ScoreDoc sd : hits.scoreDocs) {
+                Document d = searcher.doc(sd.doc);
+                Map<String, Object> result = new HashMap<>();
+                for (Fieldable f : d.getFields()) {
+                    result.put(f.name(), f.stringValue());
+                }
+                result.put("score", sd.score);
+                results.add(result);
+            }
+
+            return new SearchResult(hits.totalHits, results);
+
+        } catch (CorruptIndexException | NoSuchDirectoryException nsde) {
+            throw new NoIndexException();
+        } catch (ParseException e) {
+            throw new BadQueryException();
         }
     }
+}
 
-    static class CustomAnalyzer extends ReusableAnalyzerBase {
-        @Override
-        protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
-            Tokenizer src = new AlphaNumericTokenizer(LUCENE_36, reader);
-            TokenStream tok = new LowerCaseFilter(LUCENE_36, src);
-            return new TokenStreamComponents(src, tok);
-        }
-    }
+interface QueryBuilder {
+    String buildQuery(Map<String,Object> params);
+}
 
-    private IndexWriter createIndexWriter() throws IOException {
-        Analyzer analyzer = new CustomAnalyzer();
-
-        IndexWriterConfig config = new IndexWriterConfig(LUCENE_36, analyzer);
-        config.setRAMBufferSizeMB(5.0f);
-        config.setOpenMode(CREATE);
-
-        Directory indexDir = FSDirectory.open(indexFile);
-        return new IndexWriter(indexDir, config);
-    }
-
+class IndividualQueryBuilder implements QueryBuilder {
 
     @Override
     public String buildQuery(Map<String, Object> params) {
@@ -242,229 +265,230 @@ public class IndexImpl implements Index {
 
         return qstr.toString();
     }
+}
+
+/**
+ * A custom {@link PreparedStatementCreator} for use with {@link JdbcTemplate}. It creates statements
+ * configured to stream data efficiently using options for the MySQL java connector. It prevents
+ * filling up memory for extremely large results.
+ */
+class MySqlStreamingStatementCreator implements PreparedStatementCreator {
+
+    private String query;
+
+    public MySqlStreamingStatementCreator(String query) {
+        this.query = query;
+    }
 
     @Override
-    public SearchResult search(String q, int maxResults) throws NoIndexException, BadQueryException, IOException {
+    public PreparedStatement createPreparedStatement(Connection con) throws SQLException {
+        PreparedStatement stmt = con.prepareStatement(query, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+        stmt.setFetchSize(Integer.MIN_VALUE);
+        return stmt;
+    }
+}
 
-        try {
-            Analyzer analyzer = new CustomAnalyzer();
+/**
+ * A custom lucene {@link Tokenizer} that is used to generate tokens from an input stream. It defines
+ * tokens as being only Alphanumeric strings. All other input is considered as part of a delimiter.
+ */
+class AlphaNumericTokenizer extends CharTokenizer {
+    public AlphaNumericTokenizer(Version matchVersion, Reader in) {
+        super(matchVersion, in);
+    }
+    @Override
+    protected boolean isTokenChar(int c) {
+        return Character.isLetterOrDigit(c);
+    }
+}
 
-            // Open the index for the search
-            Directory indexDir = FSDirectory.open(indexFile);
-            IndexReader reader = IndexReader.open(indexDir);
-            IndexSearcher searcher = new IndexSearcher(reader);
-            QueryParser parser = new IndexQueryParser(analyzer);
+/**
+ * A custom lucene {@link Analyzer} that processes input during indexing. It processes input into a
+ * stream of lowercase alphanumeric tokens.
+ */
+class CustomAnalyzer extends ReusableAnalyzerBase {
+    @Override
+    protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
+        Tokenizer src = new AlphaNumericTokenizer(LUCENE_36, reader);
+        TokenStream tok = new LowerCaseFilter(LUCENE_36, src);
+        return new TokenStreamComponents(src, tok);
+    }
+}
 
-            log.info("running query: '{}'", q);
+/**
+ * A customized lucene {@link QueryParser} that overrides some default configuration and interprets
+ * age terms as numeric range queries.
+ */
+class CustomQueryParser extends QueryParser {
 
-            Query query = parser.parse(q);
-            TopDocs hits = searcher.search(query, maxResults);
-
-            log.info("found {} hits, showing top {}", hits.totalHits, maxResults);
-
-            // Convert documents into results map for page
-            List<Map<String, Object>> results = new ArrayList<>();
-            for (ScoreDoc sd : hits.scoreDocs) {
-                Document d = searcher.doc(sd.doc);
-                Map<String, Object> result = new HashMap<>();
-                for (Fieldable f : d.getFields()) {
-                    result.put(f.name(), f.stringValue());
-                }
-                result.put("score", sd.score);
-                results.add(result);
-            }
-
-            return new SearchResult(hits.totalHits, results);
-
-        } catch (CorruptIndexException | NoSuchDirectoryException nsde) {
-            throw new NoIndexException();
-        } catch (ParseException e) {
-            throw new BadQueryException();
-        }
+    public CustomQueryParser(Analyzer analyzer) {
+        super(LUCENE_36, "dip", analyzer);
+        setAllowLeadingWildcard(true); // Just in case we want to do sql %-style queries
+        setAutoGeneratePhraseQueries(true); // Lazy way to parse phrases - works for this system
+        setDefaultOperator(QueryParser.Operator.OR);  // Because we rely on it, it's default
     }
 
-    static class MySqlStreamingStatementCreator implements PreparedStatementCreator {
-
-        private String query;
-
-        public MySqlStreamingStatementCreator(String query) {
-            this.query = query;
+    @Override
+    protected Query getRangeQuery(String field, String part1, String part2, boolean inclusive) throws ParseException {
+        if ("age".equals(field)) {
+            int start = Integer.parseInt(part1), end = Integer.parseInt(part2);
+            return NumericRangeQuery.newIntRange("age", start, end, inclusive, inclusive);
         }
+        return super.getRangeQuery(field, part1, part2, inclusive);
+    }
+}
 
-        @Override
-        public PreparedStatement createPreparedStatement(Connection con) throws SQLException {
-            // Configures the MySQL java connector to stream data; prevents filling up memory for large results
-            PreparedStatement stmt = con.prepareStatement(query, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-            stmt.setFetchSize(Integer.MIN_VALUE);
-            return stmt;
-        }
+/**
+ * A callback for {@link JdbcTemplate} that indexes our query results as a lucene document using
+ * the supplied {@link IndexWriter}.
+ */
+class RowIndexer implements RowCallbackHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(RowIndexer.class);
+
+    private static final Set<String> NAME_LABELS = new HashSet<>(Arrays.asList("firstName", "middleName", "lastName"));
+    private static final Set<String> PHONE_LABELS = new HashSet<>(Arrays.asList("phoneNumber", "otherPhoneNumber", "pointOfContactPhoneNumber"));
+    private static final Set<String> HEAD_NAME_LABELS = new HashSet<>(Arrays.asList("hhFirstName", "hhMiddleName", "hhLastName"));
+
+    private int processed = 0;
+    private IndexWriter indexWriter;
+
+    public RowIndexer(IndexWriter indexWriter) {
+        this.indexWriter = indexWriter;
     }
 
-    static class IndexRowHandler implements RowCallbackHandler {
+    @Override
+    public void processRow(ResultSet rs) throws SQLException {
 
-        private static final Set<String> NAME_LABELS = new HashSet<>(Arrays.asList("firstName", "middleName", "lastName"));
-        private static final Set<String> PHONE_LABELS = new HashSet<>(Arrays.asList("phoneNumber", "otherPhoneNumber", "pointOfContactPhoneNumber"));
-        private static final Set<String> HEAD_NAME_LABELS = new HashSet<>(Arrays.asList("hhFirstName", "hhMiddleName", "hhLastName"));
-
-        private int processed = 0;
-        private IndexWriter indexWriter;
-
-        public IndexRowHandler(IndexWriter indexWriter) {
-            this.indexWriter = indexWriter;
+        if (log.isDebugEnabled()) {
+            log.debug(Integer.toString(++processed) + ": " + rs.getString("extId"));
         }
 
-        @Override
-        public void processRow(ResultSet rs) throws SQLException {
-
-            if (log.isDebugEnabled()) {
-                log.debug(Integer.toString(++processed) + ": " + rs.getString("extId"));
-            }
-
-            // Used to get field count and labels
-            ResultSetMetaData md = rs.getMetaData();
+        // Used to get field count and labels
+        ResultSetMetaData md = rs.getMetaData();
 
             /*
                Used to merge multiple fields into single term without duplication.
                This prevents skewing the scores when value is repeated multiple times.
              */
-            Set<String> names = new HashSet<>();
-            Set<String> phones = new HashSet<>();
-            Set<String> headNames = new HashSet<>();
+        Set<String> names = new HashSet<>();
+        Set<String> phones = new HashSet<>();
+        Set<String> headNames = new HashSet<>();
 
-            boolean droppedFuzzy = false;
+        boolean droppedFuzzy = false;
 
-            // Populate document using result set
-            Document d = new Document();
-            for (int col = 1; col <= md.getColumnCount(); col++) {
-                Fieldable f;
-                String label = md.getColumnLabel(col);
-                if (rs.getObject(label) != null) {
-                    if ("dip".equals(label)) {
-                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.YES);
-                    } else if ("extId".equals(label)) {
-                        // Field is only used to show result, not used in search
-                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
-                    } else if ("age".equals(label)) {
-                        NumericField nf = new NumericField(label, 1, Field.Store.YES, true);
-                        nf.setIntValue(rs.getInt(label));
-                        f = nf;
-                    } else if (PHONE_LABELS.contains(label)) {
-                        // Field is only used to show result, not used in search
-                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
-                        for (String phone : rs.getString(label).split("\\s+")) {
-                            phones.add(phone);
-                        }
-                    } else if (NAME_LABELS.contains(label)) {
-                        String rawNames = rs.getString(label);
-                        // Field is only used to show result, not used in search
-                        f = new Field(label, rawNames, Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
-                        for (String name : rawNames.split("\\s+")) {
-                            name = name.replaceAll("(?U)\\W+","").toLowerCase();
-                            if (names.contains(name)) {
-                                continue;
-                            }
-                            if (containsFuzzyMatch(names, name)) {
-                                log.debug("dropping fuzzy duplicate: {}", name);
-                                droppedFuzzy = true;
-                                continue;
-                            }
-                            names.add(name);
-                        }
-                    } else if (HEAD_NAME_LABELS.contains(label)) {
-                        String rawNames = rs.getString(label);
-                        // Field is only used to show result, not used in search
-                        f = new Field(label, rawNames, Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
-                        for (String name : rawNames.split("\\s+")) {
-                            name = name.replaceAll("(?U)\\W+","").toLowerCase();
-                            if (headNames.contains(name)) {
-                                continue;
-                            }
-                            if (containsFuzzyMatch(headNames, name)) {
-                                log.debug("dropping fuzzy duplicate: {}", name);
-                                droppedFuzzy = true;
-                                continue;
-                            }
-                            headNames.add(name);
-                        }
-                    } else {
-                        f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.YES);
+        // Populate document using result set
+        Document d = new Document();
+        for (int col = 1; col <= md.getColumnCount(); col++) {
+            Fieldable f;
+            String label = md.getColumnLabel(col);
+            if (rs.getObject(label) != null) {
+                if ("dip".equals(label)) {
+                    f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.YES);
+                } else if ("extId".equals(label)) {
+                    // Field is only used to show result, not used in search
+                    f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
+                } else if ("age".equals(label)) {
+                    NumericField nf = new NumericField(label, 1, Field.Store.YES, true);
+                    nf.setIntValue(rs.getInt(label));
+                    f = nf;
+                } else if (PHONE_LABELS.contains(label)) {
+                    // Field is only used to show result, not used in search
+                    f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
+                    for (String phone : rs.getString(label).split("\\s+")) {
+                        phones.add(phone);
                     }
-                    d.add(f);
+                } else if (NAME_LABELS.contains(label)) {
+                    String rawNames = rs.getString(label);
+                    // Field is only used to show result, not used in search
+                    f = new Field(label, rawNames, Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
+                    for (String name : rawNames.split("\\s+")) {
+                        name = name.replaceAll("(?U)\\W+","").toLowerCase();
+                        if (names.contains(name)) {
+                            continue;
+                        }
+                        if (containsFuzzyMatch(names, name)) {
+                            log.debug("dropping fuzzy duplicate: {}", name);
+                            droppedFuzzy = true;
+                            continue;
+                        }
+                        names.add(name);
+                    }
+                } else if (HEAD_NAME_LABELS.contains(label)) {
+                    String rawNames = rs.getString(label);
+                    // Field is only used to show result, not used in search
+                    f = new Field(label, rawNames, Field.Store.YES, Field.Index.NOT_ANALYZED, Field.TermVector.NO);
+                    for (String name : rawNames.split("\\s+")) {
+                        name = name.replaceAll("(?U)\\W+","").toLowerCase();
+                        if (headNames.contains(name)) {
+                            continue;
+                        }
+                        if (containsFuzzyMatch(headNames, name)) {
+                            log.debug("dropping fuzzy duplicate: {}", name);
+                            droppedFuzzy = true;
+                            continue;
+                        }
+                        headNames.add(name);
+                    }
+                } else {
+                    f = new Field(label, rs.getString(label), Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.YES);
                 }
-            }
-
-            if (droppedFuzzy) {
-                log.debug("indexing names: {}", names);
-                log.debug("indexing head names: {}", headNames);
-            }
-
-            // Construct single de-duplicated name term from name terms
-            if (!names.isEmpty()) {
-                StringBuilder nameBuf = new StringBuilder();
-                for (String name : names) {
-                    if (nameBuf.length() > 0)
-                        nameBuf.append(" ");
-                    nameBuf.append(name);
-                }
-                d.add(new Field("name", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
-            }
-
-            // Construct single de-duplicated phone term from phone terms
-            if (!phones.isEmpty()) {
-                StringBuilder phoneBuf = new StringBuilder();
-                for (String phone : phones) {
-                    if (phoneBuf.length() > 0)
-                        phoneBuf.append(" ");
-                    phoneBuf.append(phone);
-                }
-                d.add(new Field("phone", phoneBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
-            }
-
-            if (!headNames.isEmpty()) {
-                StringBuilder nameBuf = new StringBuilder();
-                for (String name : headNames) {
-                    if (nameBuf.length() > 0)
-                        nameBuf.append(" ");
-                    nameBuf.append(name);
-                }
-                d.add(new Field("headName", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
-            }
-
-            try {
-                indexWriter.addDocument(d);
-            } catch (IOException e) {
-                log.warn("failed to add document to index", e);
+                d.add(f);
             }
         }
 
-        private static final float MAX_SIMILARITY = 0.99f;
+        if (droppedFuzzy) {
+            log.debug("indexing names: {}", names);
+            log.debug("indexing head names: {}", headNames);
+        }
 
-        private boolean containsFuzzyMatch(Set<String> values, String value) {
-            JaroWinklerDistance jwd = new JaroWinklerDistance();
-            for (String v : values) {
-                if (jwd.getDistance(v, value) > MAX_SIMILARITY)
-                    return true;
+        // Construct single de-duplicated name term from name terms
+        if (!names.isEmpty()) {
+            StringBuilder nameBuf = new StringBuilder();
+            for (String name : names) {
+                if (nameBuf.length() > 0)
+                    nameBuf.append(" ");
+                nameBuf.append(name);
             }
-            return false;
+            d.add(new Field("name", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
+        }
+
+        // Construct single de-duplicated phone term from phone terms
+        if (!phones.isEmpty()) {
+            StringBuilder phoneBuf = new StringBuilder();
+            for (String phone : phones) {
+                if (phoneBuf.length() > 0)
+                    phoneBuf.append(" ");
+                phoneBuf.append(phone);
+            }
+            d.add(new Field("phone", phoneBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
+        }
+
+        if (!headNames.isEmpty()) {
+            StringBuilder nameBuf = new StringBuilder();
+            for (String name : headNames) {
+                if (nameBuf.length() > 0)
+                    nameBuf.append(" ");
+                nameBuf.append(name);
+            }
+            d.add(new Field("headName", nameBuf.toString(), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.YES));
+        }
+
+        try {
+            indexWriter.addDocument(d);
+        } catch (IOException e) {
+            log.warn("failed to add document to index", e);
         }
     }
 
-    static class IndexQueryParser extends QueryParser {
+    private static final float MAX_SIMILARITY = 0.99f;
 
-        public IndexQueryParser(Analyzer analyzer) {
-            super(LUCENE_36, "dip", analyzer);
-            setAllowLeadingWildcard(true); // Just in case we want to do sql %-style queries
-            setAutoGeneratePhraseQueries(true); // Lazy way to parse phrases - works for this system
-            setDefaultOperator(QueryParser.Operator.OR);  // Because we rely on it, it's default
+    private boolean containsFuzzyMatch(Set<String> values, String value) {
+        JaroWinklerDistance jwd = new JaroWinklerDistance();
+        for (String v : values) {
+            if (jwd.getDistance(v, value) > MAX_SIMILARITY)
+                return true;
         }
-
-        @Override
-        protected Query getRangeQuery(String field, String part1, String part2, boolean inclusive) throws ParseException {
-            if ("age".equals(field)) {
-                int start = Integer.parseInt(part1), end = Integer.parseInt(part2);
-                return NumericRangeQuery.newIntRange("age", start, end, inclusive, inclusive);
-            }
-            return super.getRangeQuery(field, part1, part2, inclusive);
-        }
+        return false;
     }
 }

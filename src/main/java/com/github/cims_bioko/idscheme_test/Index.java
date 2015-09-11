@@ -10,8 +10,6 @@ public interface Index {
 
     void rebuild();
 
-    String buildQuery(Map<String, Object> params);
-
     SearchResult search(String query, int maxResults) throws NoIndexException, BadQueryException, IOException;
 
 }

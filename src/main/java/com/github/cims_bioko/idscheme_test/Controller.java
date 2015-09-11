@@ -25,6 +25,9 @@ public class Controller {
     @Autowired
     private Index index;
 
+    @Autowired
+    private QueryBuilder queryBuilder;
+
     @RequestMapping("/")
     String search(@RequestParam Map<String, Object> params, Map<String, Object> model) throws IOException {
 
@@ -42,7 +45,7 @@ public class Controller {
         // Put results in the model
         try {
             boolean manualMode = "on".equals(params.get("manualOverride"));
-            String query = manualMode ? params.get("query").toString() : index.buildQuery(params);
+            String query = manualMode ? params.get("query").toString() : queryBuilder.buildQuery(params);
             model.put("query", query);
             SearchResult result = index.search(query, 15);
             model.put("results", result.getResults());
