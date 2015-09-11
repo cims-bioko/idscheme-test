@@ -16,6 +16,9 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
+/**
+ * The main entry point and web controller for our spring boot application.
+ */
 @org.springframework.stereotype.Controller
 @EnableAutoConfiguration
 @ComponentScan(basePackages = {"com.github.cims_bioko.idscheme_test"})
@@ -23,7 +26,10 @@ import java.util.Map;
 public class Controller {
 
     @Autowired
-    private Index index;
+    private IndexBuilder indexBuilder;
+
+    @Autowired
+    private IndexSearcher indexSearcher;
 
     @Autowired
     private QueryBuilder queryBuilder;
@@ -47,7 +53,7 @@ public class Controller {
             boolean manualMode = "on".equals(params.get("manualOverride"));
             String query = manualMode ? params.get("query").toString() : queryBuilder.buildQuery(params);
             model.put("query", query);
-            SearchResult result = index.search(query, 15);
+            SearchResult result = indexSearcher.search(query, 15);
             model.put("results", result.getResults());
             String summaryMessage = String.format("Showing %s most relevant of %s total hits",
                     result.getResults().size(), result.getTotalHits());
@@ -65,7 +71,7 @@ public class Controller {
     @RequestMapping("/buildIndex")
     @ResponseBody
     String buildIndex() {
-        index.rebuild();
+        indexBuilder.rebuild();
         return "Built index.";
     }
 

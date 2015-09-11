@@ -3,6 +3,10 @@ package com.github.cims_bioko.idscheme_test;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Result from an index search. Provides information about total number of hits and a limited number
+ * of results.
+ */
 public class SearchResult {
 
     int totalHits;

@@ -11,8 +11,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.Resource;
 
+import java.io.File;
 import java.io.IOException;
 
+/**
+ * Spring wiring for application.
+ */
 @Configuration
 public class Config {
 
@@ -27,6 +31,14 @@ public class Config {
 
     @Value("classpath:sql/post.sql")
     private Resource postQuery;
+
+    @Value("#{ systemProperties['java.io.tmpdir'] + '/idscheme-test' }")
+    private File indexFile;
+
+    @Bean
+    public File indexFile() {
+        return indexFile;
+    }
 
     @Bean
     public Mustache.Compiler mustacheCompiler(Mustache.TemplateLoader mustacheTemplateLoader) {
@@ -58,5 +70,15 @@ public class Config {
     @Bean
     public QueryBuilder queryBuilder() {
         return new IndividualQueryBuilder();
+    }
+
+    @Bean
+    public IndexBuilder indexBuilder() {
+        return new IndexBuilderImpl();
+    }
+
+    @Bean
+    IndexSearcher indexSearcher() {
+        return new IndexSearcherImpl();
     }
 }

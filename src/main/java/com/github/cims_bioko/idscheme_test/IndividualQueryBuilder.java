@@ -3,7 +3,7 @@ package com.github.cims_bioko.idscheme_test;
 import java.util.Map;
 
 /**
- * Created by batkinson on 9/10/15.
+ * Builds a lucene query string for indexed individuals.
  */
 class IndividualQueryBuilder implements QueryBuilder {
 
