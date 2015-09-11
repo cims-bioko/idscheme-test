@@ -49,6 +49,11 @@ application with any of the above schemes, you can override the bundle settings
 using system properties. For example:
 
 ```
-java -jar idscheme-test-<version>.jar -Dspring.datasource.url=jdbc:mysql://<dbhost>:3306/openhds -Dspring.datasource.username=<username> -Dspring.datasource.password=<password>
+java -jar idscheme-test-<version>.jar \
+    -Dspring.datasource.url=jdbc:mysql://<dbhost>:3306/openhds \
+    -Dspring.datasource.username=<db username> \
+    -Dspring.datasource.password=<db password> \
+    -Dapp.username=<staff username>
+    -Dapp.password=<staff password>
 ```
 
