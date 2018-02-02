@@ -1,5 +1,7 @@
 # Identification Prototype
 
+*This project is no longer active. The demo was successful and approach adopted. This now exists only for archival purposes.*
+
 A prototype for a tool to identify individuals from information in the CIMS
 database. It was developed to evaluate a search based approach to
 identification.
